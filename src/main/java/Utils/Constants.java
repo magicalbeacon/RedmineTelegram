@@ -12,7 +12,10 @@ public class Constants {
     public static final String STATUS_OPEN = "open";
     public static final String STATUS_NEW = "new";
     public static final String TELEGRAM_MARKDOWN = "Markdown";
-
+    public static final String TELEGRAM_ID = "TELEGRAM_ID";
+    public static final int HTTP_NOT_FOUND = 404;
+    public static final int HTTP_UNAUTHORIZED = 401;
+    public static final String BOT_ID = "BOT_ID";
 
 }
 

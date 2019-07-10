@@ -15,11 +15,14 @@ import retrofit2.Callback;
 import retrofit2.Response;
 import telegram.RedmineTelegram;
 import java.io.*;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.time.Instant;
-import java.util.Date;
-import java.util.Scanner;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 
 public class RedParserApplication {
@@ -62,42 +65,63 @@ public class RedParserApplication {
             @Override
             public void onResponse(Call<IssuesModel> call, Response<IssuesModel> response) {
                 System.out.println("Response:" + response.toString());
+                if(response.code() == Constants.HTTP_UNAUTHORIZED){
+                    System.out.println("Invalid API Key!");
+                    System.exit(0);
+                }else if(response.code() == Constants.HTTP_NOT_FOUND){
+                    System.out.println("Invalid URL!");
+                    System.exit(0);
+                }
                 IssuesModel base = response.body();
-                System.out.println("Base:" + base.toString());
+                LocalDateTime date = null;
+                try {
+                    date = LocalDateTime.parse(getTimestamp(), DateTimeFormatter.ISO_INSTANT.withZone(ZoneId.systemDefault()));
+                    System.out.println(date.toString());
+                }catch(Exception e){
+                    e.printStackTrace();
+                }
                 String message = "";
                 if(response != null && response.body() != null) {
+                    LocalDateTime newestTime = LocalDateTime.parse(base.getIssues().get(0).getCreatedOn(), DateTimeFormatter.ISO_INSTANT.withZone(ZoneId.systemDefault()));
                     if (base.getIssues().size() > 0) {
                         base.getIssues().forEach(System.out::println);
-                        if(getTimestamp().equals(base.getIssues().get(0).getCreatedOn())){
+                        if(date.equals(newestTime)){
                                 System.out.println("No new issues");
                         }else {
-                            System.out.println("Newest Issue:" + base.getIssues().get(0).toString());
-                            message = formatText(base.getIssues().get(0));
+                            for(Issue issue : base.getIssues()) {
+                                LocalDateTime tempTime = LocalDateTime.parse(issue.getCreatedOn(), DateTimeFormatter.ISO_INSTANT.withZone(ZoneId.systemDefault()));
+                                if(tempTime.isAfter(date)) {
+                                    System.out.println("Attempting to send message...");
+                                    System.out.println("Newest Issue:" + issue);
+                                    message = formatText(issue);
+                                    msg.setText(message);
+                                    msg.setChatId(RedmineProperties.getProperties().getProperty(Constants.TELEGRAM_ID));
+                                    msg.setParseMode(Constants.TELEGRAM_MARKDOWN);
+                                    try {
+                                        telegram.execute(msg);
+                                    }catch(Exception e) {
+                                        System.out.println("Invalid Chat Id!!");
+                                        System.exit(0);
+                                    }
+                                }else
+                                    break;
+                            }
                             writeNewTimestamp(base.getIssues().get(0).getCreatedOn());
-                            msg.setText(message);
-                            msg.setChatId("-1001160531201");
                         }
                     } else {
-                        System.out.println("No Stuff :(");
-                        msg.setText("HELLO NO NEW STUFF");
-                        msg.setChatId("-1001160531201");
+                        System.out.println("No New Issues");
+                        //-1001160531201
                     }
                 }else{
 
-                }
-                if(!message.equals("")){
-                    try {
-                        msg.setParseMode(Constants.TELEGRAM_MARKDOWN);
-                        telegram.execute(msg);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
                 }
             }
 
             @Override
             public void onFailure(Call<IssuesModel> call, Throwable t) {
-                System.out.println("Call Failed");
+                t.printStackTrace();
+                System.out.println("Something went wrong! Ensure that your parameters are correct!");
+                System.exit(0);
             }
         });
 
@@ -124,7 +148,7 @@ public class RedParserApplication {
         builder.append("\n");
         builder.append(String.format("*%-11s:* `%s`", "Reported By", data.getAuthor().getName()));
         builder.append("\n");
-        builder.append(String.format("*%-12s:* `%s`", "Assigned to", data.getAssignedTo().getName()));
+        builder.append(String.format("*%-12s:* `%s`", "Assigned to", (data.getAssignedTo() == null ? "" : data.getAssignedTo().getName())));
         builder.append("\n\n");
         builder.append("_ Created on: " +formatDate(data.getCreatedOn()) + "_");
         System.out.println(builder.toString());
@@ -135,6 +159,7 @@ public class RedParserApplication {
         return Date.from( Instant.parse(date)).toString();
     }
 
+
     private void initTelegram(){
         ApiContextInitializer.init();
         TelegramBotsApi botsApi = new TelegramBotsApi();
@@ -142,13 +167,9 @@ public class RedParserApplication {
         try {
             botsApi.registerBot(new RedmineTelegram());
         }catch(TelegramApiException e){
-            e.printStackTrace();
+            System.out.println("Error Initializing Bot! Check your Bot Token!");
+            System.exit(0);
         }
-    }
-
-    public boolean isNewData(String timestamp){
-        Date currentDate = Date.from(Instant.parse(getTimestamp()));
-        return false;
     }
 
     public void writeNewTimestamp(String timestamp){
@@ -173,13 +194,14 @@ public class RedParserApplication {
                 return null;
             } else {
                 Scanner sc = new Scanner(file);
-                while (sc.hasNext()) {
-
+                if(sc.hasNext()) {
                     return sc.nextLine();
                 }
             }
         }catch(Exception e){
             e.printStackTrace();
+            System.out.println("Error reading timestamp file! Do not delete file with your API Key!");
+            System.exit(0);
         }
         return null;
     }

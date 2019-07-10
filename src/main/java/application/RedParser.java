@@ -9,11 +9,16 @@ public class RedParser {
             if(args.length == 0
                 || args[0].equals("")
                     || args[1].equals("")
+                    || args[2].equals("")
+                    || args[3].equals("")
                     || args[0] == null
-                    || args[1] == null){
-                System.out.println("Please provide an API Key and IP Address: java application.RedParser <IP Address> <Key>");
+                    || args[1] == null
+                    || args[2] == null
+                    || args[3] == null
+                    || args.length != 4){
+                System.out.println("Check your parameters! Correct Usage: java RedParser <URL> <Key> <ChatID> <BotID>");
             }else{
-                new RedmineProperties(args[0], args[1]);
+                new RedmineProperties(args[0], args[1], args[2], args[3]);
                 new OkHttpHelper().init();
                 new RedParserApplication().run();
             }
